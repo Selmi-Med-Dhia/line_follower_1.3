@@ -1,30 +1,40 @@
 #define PI 3.14159265358979323846
 
 //ESP32 pin Layout
-int sensors[8] = {35, 27, 26, 25, 14, 13, 12, 15}; // sensor's pins from left to right
-int pushButton = 34; // pushbutton pin
-int motorRA = 21; // right motor +
-int motorRB = 19; // right motor -
-int motorLA = 22; // left motor +
-int motorLB = 23; // left motor -
-int encoderRA = 33; // right encoder A phase
-int encoderRB = 18; // right encoder B phase
-int encoderLA = 5; // left encoder A phase
-int encoderLB = 4; // left encpder B phase
+int sensors[10] = {2, 34, 35, 27, 26, 25, 14, 13, 12, 15}; // sensor's pins from left to right
+int motorRA = 23; // right motor +
+int motorRB = 22; // right motor -
+int motorLA = 19; // left motor +
+int motorLB = 21; // left motor -
+int encoderRA = 4; // right encoder A phase
+int encoderRB = 5; // right encoder B phase
+int encoderLA = 33; // left encoder A phase
+int encoderLB = 18; // left encpder B phase
+int threashold[10]={0,0,0,0,0,0,0,0,0,0};
 
-volatile int encoderRCount = 0; // tick count of right encoder
-volatile int previousEncoderRCount = 0; // previous tick count of right encoder
-volatile double speedR = 0; // current speed of right motor
+volatile long encoderRCount = 0; // tick count of right encoder
+volatile long previousEncoderRCount = 0; // previous tick count of right encoder
+volatile float speedR = 0; // current speed of right motor
 int targetR; // target encoder count of right motor
+long previousMeasureTimeR = 0;
+float targetSpeedR = 0;
+float previousSpeedErrorR = 0;
+int currentPWMR = 0;
 
-volatile int encoderLCount = 0;
-volatile int previousEncoderLCount = 0;
-volatile double speedL = 0;
+volatile long encoderLCount = 0;
+volatile long previousEncoderLCount = 0;
+volatile float speedL = 0;
 int targetL;
+unsigned long previousMeasureTimeL = 0;
+float targetSpeedL = 0;
+float previousSpeedErrorL = 0;
+int currentPWML = 0;
 
-float kpP = 2; // proportional weight of position control PID
-float kiP = 0.43; // integral weight of position control PID
-float kdP = 0.54; // derivative weight of position control PID
+unsigned long tmp;
+
+float kpP = 2.2; // proportional weight of position control PID
+float kiP = 0.4; // integral weight of position control PID
+float kdP = 0.4; // derivative weight of position control PID
 float ksP = 1; // all in one weight of position control PID (s stands for speed)
 int previousErrorR = 0; // previous position error, needed for position control PID
 unsigned long previousTimeR = 0;
@@ -33,7 +43,18 @@ int previousErrorL = 0;
 int integralTermR = 0;
 int integralTermL = 0;
 
+float kpS = 0.8; // proportional weight of position control PID
+float kiS = 0.005; // integral weight of position control PID
+float kdS = 0; // derivative weight of position control PID
+float ksS = 0.2; // all in one weight of position control PID (s stands for speed)
+float speedIntegralTermR = 0;
+float speedIntegralTermL = 0;
+unsigned long previousSpeedTimeR = 0;
+unsigned long previousSpeedTimeL = 0;
+
 const int PPR = 408;
+float wheelDiamemter = 67.5;
+float wheelSpacing = 159.2;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -94,6 +115,7 @@ int getPositionCorrectionL(){
 }
 
 void speedRight(int speed){
+  speed = constrain(speed, -255, 255);
   if (speed >=0){
     analogWrite(motorRA, 0);
     analogWrite(motorRB, speed);
@@ -104,12 +126,68 @@ void speedRight(int speed){
 }
 
 void speedLeft(int speed){
+  speed = constrain(speed, -255, 255);
   if(speed >=0){
     analogWrite(motorLA, 0);
     analogWrite(motorLB, speed);
   }else{
     analogWrite(motorLB, 0);
     analogWrite(motorLA, (-1)*speed);
+  }
+}
+
+int getSpeedCorrectionR(){
+  float error = targetSpeedR - speedR;
+  
+  speedIntegralTermR = constrain( speedIntegralTermR + error, -80 ,80 );
+
+  double derivative = (error - previousSpeedErrorR) / ( (micros() - previousSpeedTimeR) / 1000000.0) ;
+
+  int value = (int)( ksS*( kpS*error + kdS*derivative + kiS*speedIntegralTermR) ); // PID formula
+  
+  previousSpeedErrorR = error;
+  previousSpeedTimeR = micros();
+  return( constrain(value, -255, 255) );
+}
+
+int getSpeedCorrectionL(){
+  float error = targetSpeedL - speedL;
+  //Serial.println(error);
+  delay(1);
+  
+  speedIntegralTermL = constrain( speedIntegralTermL + error, -80 ,80 );
+
+  double derivative = (error - previousSpeedErrorL) / ( (micros() - previousSpeedTimeL) / 1000000.0) ;
+
+  int value = (int)( ksS*( kpS*error + kdS*derivative + kiS*speedIntegralTermL) ); // PID formula
+
+  previousSpeedErrorL = error;
+  previousSpeedTimeL = micros();
+  return( constrain(value, -255, 255) );
+}
+void calibrate()
+{ int j=0;
+  for(int i=0;i<10;i++)
+  {
+    while(j<10)
+    {
+      threashold[i]+=analogRead(sensors[i]);
+      j++;
+    }
+    delay(10);
+    Serial.println("black");
+    while(j>0)
+    {
+      threashold[i]+=analogRead(sensors[i]);
+      j--;
+    }
+    Serial.println("white");
+  }
+  int somme=0;
+  for(int i=0;i<10;i++)
+  {
+    threashold[i]=threashold[i]/20;
+    
   }
 }
 
@@ -121,12 +199,56 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(encoderRB), encoderRISRB, CHANGE);
   attachInterrupt(digitalPinToInterrupt(encoderLB), encoderLISRB, CHANGE);
 
-  targetL = (158.0/4)/(66.0)*PPR;
-  targetR = -(158.0/4)/(66.0)*PPR;
+  targetSpeedR = 200;
+  targetSpeedL = 200;
+}
+
+// sensor [4] ynoooo555555 w [5],[7],[8] yno55
+
+int distanceToTicks(float distance){
+  return ( distance/(wheelDiamemter*PI) )*PPR ;
+}
+
+bool targetsReached(){
+  return abs(targetL - encoderLCount) < 12 && abs(targetR - encoderRCount) < 12 ;
 }
 
 void loop() {
-  speedLeft(getPositionCorrectionL());
-  speedRight(getPositionCorrectionR());
-  delay(10);
+  // reading speed
+
+  tmp = micros();
+  speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
+  previousEncoderRCount = encoderRCount;
+  previousMeasureTimeR = tmp;
+
+  speedL = ( (encoderLCount - previousEncoderLCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeL);
+  previousEncoderLCount = encoderLCount;
+  previousMeasureTimeL = tmp;
+  delay(8);
+  
+  ////////////////////////////
+
+  //speed control
+  /*
+  currentPWMR += getSpeedCorrectionR();
+  currentPWML += getSpeedCorrectionL();
+
+  speedRight(currentPWMR);
+  speedLeft(currentPWML);
+  */
+
+  //////////////////////////
+
+  Serial.println(analogRead(sensors[4]));
+
+  //delay(1000);
+  /*speedLeft( 120 );
+  delay(7);
+  //speedRight( getSpeedCorrectionR() );
+  getSpeedCorrectionL();
+
+  //Serial.println( getSpeedCorrectionL() );
+  
+
+  delay(10);*/
 }
