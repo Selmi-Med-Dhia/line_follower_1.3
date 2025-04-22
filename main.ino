@@ -10,7 +10,7 @@ int encoderRA = 4; // right encoder A phase
 int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
-int threashold[10]={0,0,0,0,0,0,0,0,0,0};
+float threashold[10]={0,0,0,0,0,0,0,0,0,0};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -55,6 +55,8 @@ unsigned long previousSpeedTimeL = 0;
 const int PPR = 408;
 float wheelDiamemter = 67.5;
 float wheelSpacing = 159.2;
+
+bool blackOnWhite = true;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -165,29 +167,55 @@ int getSpeedCorrectionL(){
   previousSpeedTimeL = micros();
   return( constrain(value, -255, 255) );
 }
-void calibrate()
-{ int j=0;
-  for(int i=0;i<10;i++)
-  {
-    while(j<10)
-    {
-      threashold[i]+=analogRead(sensors[i]);
-      j++;
+
+int getValue(int index){
+  if(blackOnWhite){
+    return (analogRead(sensors[index]) > threashold[index]);
+  }else{
+    return (analogRead(sensors[index]) < threashold[index]);
+  }
+}
+
+void calibrate(){
+  for(int i=0; i<100; i++){
+    for(int j=0; j<10; j++){
+      threashold[j] += analogRead(sensors[j]);
     }
     delay(10);
-    Serial.println("black");
-    while(j>0)
-    {
-      threashold[i]+=analogRead(sensors[i]);
-      j--;
-    }
-    Serial.println("white");
   }
-  int somme=0;
-  for(int i=0;i<10;i++)
-  {
-    threashold[i]=threashold[i]/20;
-    
+
+  targetR = encoderRCount + distanceToTicks(60);
+  targetL = encoderLCount + distanceToTicks(60);
+  while(!targetsReached(10)){
+    speedRight(getPositionCorrectionR());
+    speedLeft(getPositionCorrectionL());
+  }
+  stop();
+
+  for(int i=0; i<100; i++){
+    for(int j=0; j<10; j++){
+      threashold[j] += analogRead(sensors[j]);
+    }
+    delay(10);
+  }
+
+  targetR = encoderRCount - distanceToTicks(60);
+  targetL = encoderLCount - distanceToTicks(60);
+  while(!targetsReached(10)){
+    speedRight(getPositionCorrectionR());
+    speedLeft(getPositionCorrectionL());
+  }
+  stop();
+  for(int i=0;i<10 ;i++){
+    threashold[i] /= 200;
+  }
+}
+
+void stop(){
+  for(int i=0; i<10; i++){
+    speedRight(0);
+    speedLeft(0);
+    delay(1);
   }
 }
 
@@ -199,8 +227,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(encoderRB), encoderRISRB, CHANGE);
   attachInterrupt(digitalPinToInterrupt(encoderLB), encoderLISRB, CHANGE);
 
-  targetSpeedR = 200;
-  targetSpeedL = 200;
+  calibrate();
 }
 
 // sensor [4] ynoooo555555 w [5],[7],[8] yno55
@@ -209,8 +236,8 @@ int distanceToTicks(float distance){
   return ( distance/(wheelDiamemter*PI) )*PPR ;
 }
 
-bool targetsReached(){
-  return abs(targetL - encoderLCount) < 12 && abs(targetR - encoderRCount) < 12 ;
+bool targetsReached(int accuracy){
+  return abs(targetL - encoderLCount) < accuracy && abs(targetR - encoderRCount) < accuracy ;
 }
 
 void loop() {
@@ -238,8 +265,12 @@ void loop() {
   */
 
   //////////////////////////
-
-  Serial.println(analogRead(sensors[4]));
+  for(int i=0; i<9; i++){
+    Serial.print(getValue(i));
+    Serial.print(":");
+  }
+  Serial.println(getValue(9));
+  
 
   //delay(1000);
   /*speedLeft( 120 );
