@@ -10,7 +10,8 @@ int encoderRA = 4; // right encoder A phase
 int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
-float threashold[10]={0,0,0,0,0,0,0,0,0,0};
+float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
+float weights[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -57,6 +58,14 @@ float wheelDiamemter = 67.5;
 float wheelSpacing = 159.2;
 
 bool blackOnWhite = true;
+
+float kpL = 1; // proportional weight of position control PID
+float kiL = 0; // integral weight of position control PID
+float kdL = 0; // derivative weight of position control PID
+float ksL = 1;
+float lineIntegralTerm = 0;
+float previousLineError = 0;
+long previousLineTime = 0;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -174,6 +183,28 @@ int getValue(int index){
   }else{
     return (analogRead(sensors[index]) < threashold[index]);
   }
+}
+
+float getLineCorrection(){ // returns correction needed to go back on line if off it
+  float error = 0;
+  for(int j=0; j<10; j++){
+    for(int i=0; i<10; i++){
+      error += getValue(i) * weights[i]; // summing current readings of all sensors multiplied by its corresponding weight, more positive means we need to go right and on like that
+    }
+    delayMicroseconds(10); // small delay tuned for stability
+  }
+  error /= 10;
+
+  lineIntegralTerm = constrain( lineIntegralTerm + error, -200 ,200 );
+
+  double derivative = (error - previousLineError) / ( (micros() - previousLineTime) / 1000000.0) ;
+
+  float value =    ksL*(kpL*error  +    kdL*derivative   +  kiL*lineIntegralTerm); // applying the PID formula
+  
+  // pushing back history of sum
+  previousLineError = error;
+
+  return value;
 }
 
 void calibrate(){
