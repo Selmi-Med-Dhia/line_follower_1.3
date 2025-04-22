@@ -11,7 +11,7 @@ int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
-float weights[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
+float weights[10] = {-400,-300,-15,-10,-5,5,10,15,300,400};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -33,9 +33,9 @@ int currentPWML = 0;
 
 unsigned long tmp;
 
-float kpP = 2.2; // proportional weight of position control PID
+float kpP = 2; // proportional weight of position control PID
 float kiP = 0.4; // integral weight of position control PID
-float kdP = 0.4; // derivative weight of position control PID
+float kdP = 1; // derivative weight of position control PID
 float ksP = 1; // all in one weight of position control PID (s stands for speed)
 int previousErrorR = 0; // previous position error, needed for position control PID
 unsigned long previousTimeR = 0;
@@ -59,13 +59,17 @@ float wheelSpacing = 159.2;
 
 bool blackOnWhite = true;
 
-float kpL = 1; // proportional weight of position control PID
-float kiL = 0; // integral weight of position control PID
-float kdL = 0; // derivative weight of position control PID
-float ksL = 1;
+float kpL = 1.2; // proportional weight of position control PID
+float kiL = 0.00; // integral weight of position control PID
+float kdL = 0.7; // derivative weight of position control PID
+float ksL = 2;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
 long previousLineTime = 0;
+
+int lastMove = 0;
+
+float baseRPM = 200;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -195,7 +199,7 @@ float getLineCorrection(){ // returns correction needed to go back on line if of
   }
   error /= 10;
 
-  lineIntegralTerm = constrain( lineIntegralTerm + error, -200 ,200 );
+  lineIntegralTerm = constrain( lineIntegralTerm + error, -1000 ,1000 );
 
   double derivative = (error - previousLineError) / ( (micros() - previousLineTime) / 1000000.0) ;
 
@@ -259,6 +263,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(encoderLB), encoderLISRB, CHANGE);
 
   calibrate();
+
+  delay(3000);
 }
 
 // sensor [4] ynoooo555555 w [5],[7],[8] yno55
@@ -287,21 +293,60 @@ void loop() {
   ////////////////////////////
 
   //speed control
-  /*
+  
   currentPWMR += getSpeedCorrectionR();
   currentPWML += getSpeedCorrectionL();
 
   speedRight(currentPWMR);
   speedLeft(currentPWML);
-  */
+  
 
   //////////////////////////
+  
+  /*
   for(int i=0; i<9; i++){
-    Serial.print(getValue(i));
+    Serial.print((getValue(i)?"|":"."));
     Serial.print(":");
   }
-  Serial.println(getValue(9));
+  Serial.println(getValue(9)?"|":".");
+  */
   
+  if(getValue(0) + getValue(1) + getValue(2) + getValue(3) + getValue(4) + getValue(5) + getValue(6) + getValue(7) + getValue(8) + getValue(9) == 0){
+    if(lastMove == 1){
+      while(!getValue(8)){
+        delay(1);
+      }
+    }
+    if(lastMove == -1){
+      while(!getValue(1)){
+        delay(1);
+      }
+    }
+  }
+
+  float correction = getLineCorrection();
+  if(correction > 0){
+    lastMove = 1;
+  }
+  if(correction < 0){
+    lastMove = -1;
+  }else{
+    lastMove = 0;
+  }
+  
+  targetSpeedL = baseRPM + correction;
+  targetSpeedR = baseRPM - correction;
+
+  //Serial.println(getLineCorrection());
+
+  // jumping to speed (approximately)
+
+  if (speedR > 5){
+    speedRight(currentPWMR*(targetSpeedR/speedR));
+  };
+  if (speedL > 5){
+    speedLeft(currentPWML*(targetSpeedL/speedL));
+  };
 
   //delay(1000);
   /*speedLeft( 120 );
