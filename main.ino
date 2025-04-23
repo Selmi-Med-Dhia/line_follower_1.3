@@ -11,9 +11,11 @@ int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
-//float weights[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
+float weights100[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
 //float weights[10] = {-10,-9,-8,-3,-1,1,3,8,9,10};
-float weights[10] = {-50,-40,-14,-10,-10,10,10,14,40,50};
+float weights200[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
+
+float weights[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -61,9 +63,9 @@ float wheelSpacing = 154;
 
 bool blackOnWhite = true;
 
-float kpL = 2.1; //2.2 proportional weight of line control PID
-float kiL = 0.00; // integral weight of line control PID
-float kdL = 0.2; //0.9 derivative weight of line control PID
+float kpL = 0.7; // proportional weight of line control PID 2.2 for 100
+float kiL = 0.00; // integral weight of line control PID 
+float kdL = 0.4; // derivative weight of line control PID 0.9 for 100
 float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
@@ -345,15 +347,14 @@ void loop() {
   if (speedL > 5){
     speedLeft(currentPWML*(targetSpeedL/speedL));
   };
-  
-  //delay(1000);
-  /*speedLeft( 120 );
-  delay(7);
-  //speedRight( getSpeedCorrectionR() );
-  getSpeedCorrectionL();
 
-  //Serial.println( getSpeedCorrectionL() );
-  
+  if(encoderRCount > distanceToTicks(1500)){
+    baseRPM = 100;
+    kpL = 2.2;
+    kdL = 0.9;
+    for(int i=0;i<10;i++){
+      weights[i] = weights100[i];
+    }
+  }
 
-  delay(10);*/
 }
