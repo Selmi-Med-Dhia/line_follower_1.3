@@ -11,7 +11,9 @@ int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
-float weights[10] = {-400,-300,-15,-10,-5,5,10,15,300,400};
+//float weights[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
+//float weights[10] = {-10,-9,-8,-3,-1,1,3,8,9,10};
+float weights[10] = {-50,-40,-14,-10,-10,10,10,14,40,50};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -55,19 +57,17 @@ unsigned long previousSpeedTimeL = 0;
 
 const int PPR = 408;
 float wheelDiamemter = 67.5;
-float wheelSpacing = 159.2;
+float wheelSpacing = 154;
 
 bool blackOnWhite = true;
 
-float kpL = 1.2; // proportional weight of position control PID
-float kiL = 0.00; // integral weight of position control PID
-float kdL = 0.7; // derivative weight of position control PID
-float ksL = 2;
+float kpL = 2.1; //2.2 proportional weight of line control PID
+float kiL = 0.00; // integral weight of line control PID
+float kdL = 0.2; //0.9 derivative weight of line control PID
+float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
 long previousLineTime = 0;
-
-int lastMove = 0;
 
 float baseRPM = 200;
 
@@ -199,6 +199,14 @@ float getLineCorrection(){ // returns correction needed to go back on line if of
   }
   error /= 10;
 
+  int sum = 0;
+  for(int i=0;i<10;i++){
+    sum += getValue(i);
+  }
+  if(sum == 0){
+    error = previousLineError;
+  }
+
   lineIntegralTerm = constrain( lineIntegralTerm + error, -1000 ,1000 );
 
   double derivative = (error - previousLineError) / ( (micros() - previousLineTime) / 1000000.0) ;
@@ -254,6 +262,19 @@ void stop(){
   }
 }
 
+void turn(float degree){
+  kpP = 1;
+  targetR = encoderRCount + ( (wheelSpacing*degree/600.0)/(wheelDiamemter) ) * PPR;
+  targetL = encoderLCount - ( (wheelSpacing*degree/600.0)/(wheelDiamemter) ) * PPR;
+  while(!targetsReached(10)){
+    speedRight(getPositionCorrectionR());
+    speedLeft(getPositionCorrectionL());
+  }
+  stop();
+  kpP = 2;
+
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -299,7 +320,6 @@ void loop() {
 
   speedRight(currentPWMR);
   speedLeft(currentPWML);
-  
 
   //////////////////////////
   
@@ -310,44 +330,22 @@ void loop() {
   }
   Serial.println(getValue(9)?"|":".");
   */
-  
-  if(getValue(0) + getValue(1) + getValue(2) + getValue(3) + getValue(4) + getValue(5) + getValue(6) + getValue(7) + getValue(8) + getValue(9) == 0){
-    if(lastMove == 1){
-      while(!getValue(8)){
-        delay(1);
-      }
-    }
-    if(lastMove == -1){
-      while(!getValue(1)){
-        delay(1);
-      }
-    }
-  }
 
   float correction = getLineCorrection();
-  if(correction > 0){
-    lastMove = 1;
-  }
-  if(correction < 0){
-    lastMove = -1;
-  }else{
-    lastMove = 0;
-  }
-  
-  targetSpeedL = baseRPM + correction;
+
   targetSpeedR = baseRPM - correction;
+  targetSpeedL = baseRPM + correction;
 
   //Serial.println(getLineCorrection());
 
   // jumping to speed (approximately)
-
   if (speedR > 5){
     speedRight(currentPWMR*(targetSpeedR/speedR));
   };
   if (speedL > 5){
     speedLeft(currentPWML*(targetSpeedL/speedL));
   };
-
+  
   //delay(1000);
   /*speedLeft( 120 );
   delay(7);
