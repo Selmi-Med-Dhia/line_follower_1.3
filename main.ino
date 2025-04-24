@@ -11,11 +11,6 @@ int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
-//float weights100[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
-float weights100[10] = {-140,-100,-30,-25,-10,10,25,30,100,140};
-float weights200[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
-
-float weights[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
 volatile long encoderRCount = 0; // tick count of right encoder
 volatile long previousEncoderRCount = 0; // previous tick count of right encoder
@@ -37,8 +32,8 @@ int currentPWML = 0;
 
 unsigned long tmp;
 
-float kpP = 2; // proportional weight of position control PID
-float kiP = 0.4; // integral weight of position control PID
+float kpP = 1.1; // proportional weight of position control PID
+float kiP = 0.41; // integral weight of position control PID
 float kdP = 1; // derivative weight of position control PID
 float ksP = 1; // all in one weight of position control PID (s stands for speed)
 int previousErrorR = 0; // previous position error, needed for position control PID
@@ -63,14 +58,24 @@ float wheelSpacing = 154;
 
 bool blackOnWhite = true;
 
-float kpL = 0.7; // proportional weight of line control PID 2.2 for 100
+//float weights100[10] = {-100,-60,-30,-25,-10,10,25,30,60,100};
+float weights100[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
+float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
+//float weights250[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
+
+float weights[10] = {-170,-120,-40,-25,-10,10,25,40,120,170};
+
+float kpL = 0.5; // proportional weight of line control PID 0.5 for 100
 float kiL = 0.00; // integral weight of line control PID 
-float kdL = 0.4; // derivative weight of line control PID 0.9 for 100
+float kdL = 50; // derivative weight of line control PID 20 for 100
 float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
 long previousLineTime = 0;
 float previousCorrection = 0;
+
+bool flags[15] = {true,true,false,false,false,false,false,false,false,false,false,false,false,false,false};
+long triggerPointsOfFlags[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 float baseRPM = 200;
 
@@ -278,6 +283,14 @@ void turn(float degree){
 
 }
 
+int sumSensors(int start, int end){
+  int sum = 0;
+  for(int i=start; i<end; i++){
+    sum += getValue(i);
+  }
+  return sum;
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -326,6 +339,7 @@ void loop() {
 
   //////////////////////////
   
+  //sensor values visualization
   /*
   for(int i=0; i<9; i++){
     Serial.print((getValue(i)?"|":"."));
@@ -351,14 +365,20 @@ void loop() {
     };
   }
   previousCorrection = correction;
-
-  if(encoderRCount > distanceToTicks(0)){
-    baseRPM = 100;
-    kpL = 0.7;
-    kdL = 0.3;
-    for(int i=0;i<10;i++){
-      weights[i] = weights100[i];
+  
+  //flags
+  if (!flags[0] && encoderRCount > distanceToTicks(800) && sumSensors(0, 10)>2 ){
+    weights[0] = 0;
+    weights[1] = 0;
+    weights[2] = 0;
+    flags[0] = true;
+    triggerPointsOfFlags[0] = encoderRCount;
+  }
+  if (flags[0] && !flags[1] && (encoderRCount - triggerPointsOfFlags[0]) > distanceToTicks(100) ){
+    for(int i=0; i<10;i++){
+      weights[i] = weights200[i];
     }
+    flags[1] = true;
   }
 
 }
