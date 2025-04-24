@@ -11,8 +11,8 @@ int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encpder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
-float weights100[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
-//float weights[10] = {-10,-9,-8,-3,-1,1,3,8,9,10};
+//float weights100[10] = {-35,-30,-20,-10,-5,5,10,20,30,35};
+float weights100[10] = {-140,-100,-30,-25,-10,10,25,30,100,140};
 float weights200[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
 float weights[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
@@ -70,6 +70,7 @@ float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
 long previousLineTime = 0;
+float previousCorrection = 0;
 
 float baseRPM = 200;
 
@@ -341,17 +342,20 @@ void loop() {
   //Serial.println(getLineCorrection());
 
   // jumping to speed (approximately)
-  if (speedR > 5){
-    speedRight(currentPWMR*(targetSpeedR/speedR));
-  };
-  if (speedL > 5){
-    speedLeft(currentPWML*(targetSpeedL/speedL));
-  };
+  if(previousCorrection != correction){
+    if (speedR > 5){
+      speedRight(currentPWMR*(targetSpeedR/speedR));
+    };
+    if (speedL > 5){
+      speedLeft(currentPWML*(targetSpeedL/speedL));
+    };
+  }
+  previousCorrection = correction;
 
-  if(encoderRCount > distanceToTicks(1500)){
+  if(encoderRCount > distanceToTicks(0)){
     baseRPM = 100;
-    kpL = 2.2;
-    kdL = 0.9;
+    kpL = 0.7;
+    kdL = 0.3;
     for(int i=0;i<10;i++){
       weights[i] = weights100[i];
     }
