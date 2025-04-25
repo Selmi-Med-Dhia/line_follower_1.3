@@ -63,11 +63,11 @@ float weights100[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
 float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
 //float weights250[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
-float weights[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
+float weights[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
 
 float kpL = 0.5; // proportional weight of line control PID 0.5 for 100
 float kiL = 0.00; // integral weight of line control PID 
-float kdL = 50; // derivative weight of line control PID 20 for 100
+float kdL = 40; // derivative weight of line control PID 20 for 100
 float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
@@ -77,7 +77,7 @@ float previousCorrection = 0;
 bool flags[15] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
 long triggerPointsOfFlags[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-float baseRPM = 100;
+float baseRPM = 300;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -366,7 +366,7 @@ void loop() {
   previousCorrection = correction;
   
   //flags
-  /*
+  // slows down to turn the 0.75*circle
   if (!flags[0] && encoderRCount > distanceToTicks(120)){
     kdL = 30;
     for(int i=0; i<10;i++){
@@ -375,7 +375,8 @@ void loop() {
     baseRPM = 100;
     flags[0] = true;
   }
-  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(900)){
+  // brings the speed back up after the circle
+  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(750)){
     kdL = 50;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
@@ -383,7 +384,7 @@ void loop() {
     baseRPM = 290;
     flags[1] = true;
   }
-
+  // detects the base of the tree and turns 90° to face it
   if (flags[1] && !flags[2] && encoderRCount > distanceToTicks(1000) && sumSensors(0, 10)>3 ){
     stop();
     delay(300);
@@ -392,15 +393,21 @@ void loop() {
       weights[i] = weights100[i];
     }
     baseRPM = 100;
-    kdL = 35;
-    weights[0] = -300;
-    weights[1] = -150;
-    weights[8] = 150;
-    weights[9] = 300;
     flags[2] = true;
-    //triggerPointsOfFlags[0] = encoderRCount;
+    triggerPointsOfFlags[2] = encoderRCount;
   }
-  */
+  // detects the top of the tree and slows down to turn the sharp turn
+  if (flags[2] && !flags[3] && encoderRCount - triggerPointsOfFlags[2] > distanceToTicks(1300) ){
+    baseRPM = 70;
+    flags[3] = true;
+    triggerPointsOfFlags[3] = encoderRCount;
+  }
+  // nrings the speed back up after the tree's sharp turn
+  if (flags[3] && !flags[4] && encoderRCount - triggerPointsOfFlags[3] > distanceToTicks(300) ){
+    baseRPM = 100;
+    flags[4] = true;
+    triggerPointsOfFlags[4] = encoderRCount;
+  }
 }
   
   
