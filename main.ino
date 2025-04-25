@@ -32,9 +32,9 @@ int currentPWML = 0;
 
 unsigned long tmp;
 
-float kpP = 1.1; // proportional weight of position control PID
-float kiP = 0.41; // integral weight of position control PID
-float kdP = 1; // derivative weight of position control PID
+float kpP = 1; // proportional weight of position control PID
+float kiP = 0.8; // integral weight of position control PID
+float kdP = 50; // derivative weight of position control PID
 float ksP = 1; // all in one weight of position control PID (s stands for speed)
 int previousErrorR = 0; // previous position error, needed for position control PID
 unsigned long previousTimeR = 0;
@@ -63,7 +63,7 @@ float weights100[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
 float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
 //float weights250[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
 
-float weights[10] = {-170,-120,-40,-25,-10,10,25,40,120,170};
+float weights[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
 
 float kpL = 0.5; // proportional weight of line control PID 0.5 for 100
 float kiL = 0.00; // integral weight of line control PID 
@@ -74,10 +74,10 @@ float previousLineError = 0;
 long previousLineTime = 0;
 float previousCorrection = 0;
 
-bool flags[15] = {true,true,false,false,false,false,false,false,false,false,false,false,false,false,false};
+bool flags[15] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
 long triggerPointsOfFlags[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-float baseRPM = 200;
+float baseRPM = 100;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -197,7 +197,7 @@ int getValue(int index){
   }
 }
 
-float getLineCorrection(){ // returns correction needed to go back on line if off it
+double getLineCorrection(){ // returns correction needed to go back on line if off it
   float error = 0;
   for(int j=0; j<10; j++){
     for(int i=0; i<10; i++){
@@ -219,7 +219,7 @@ float getLineCorrection(){ // returns correction needed to go back on line if of
 
   double derivative = (error - previousLineError) / ( (micros() - previousLineTime) / 1000000.0) ;
 
-  float value =    ksL*(kpL*error  +    kdL*derivative   +  kiL*lineIntegralTerm); // applying the PID formula
+  double value =    ksL*(kpL*error  +    kdL*derivative   +  kiL*lineIntegralTerm); // applying the PID formula
   
   // pushing back history of sum
   previousLineError = error;
@@ -271,16 +271,13 @@ void stop(){
 }
 
 void turn(float degree){
-  kpP = 1;
-  targetR = encoderRCount + ( (wheelSpacing*degree/600.0)/(wheelDiamemter) ) * PPR;
-  targetL = encoderLCount - ( (wheelSpacing*degree/600.0)/(wheelDiamemter) ) * PPR;
+  targetR = encoderRCount + ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
+  targetL = encoderLCount - ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
   while(!targetsReached(10)){
     speedRight(getPositionCorrectionR());
     speedLeft(getPositionCorrectionL());
   }
   stop();
-  kpP = 2;
-
 }
 
 int sumSensors(int start, int end){
@@ -336,6 +333,7 @@ void loop() {
 
   speedRight(currentPWMR);
   speedLeft(currentPWML);
+  
 
   //////////////////////////
   
@@ -347,8 +345,9 @@ void loop() {
   }
   Serial.println(getValue(9)?"|":".");
   */
+  
 
-  float correction = getLineCorrection();
+  float correction = (float)getLineCorrection();
 
   targetSpeedR = baseRPM - correction;
   targetSpeedL = baseRPM + correction;
@@ -367,18 +366,42 @@ void loop() {
   previousCorrection = correction;
   
   //flags
-  if (!flags[0] && encoderRCount > distanceToTicks(800) && sumSensors(0, 10)>2 ){
-    weights[0] = 0;
-    weights[1] = 0;
-    weights[2] = 0;
+  /*
+  if (!flags[0] && encoderRCount > distanceToTicks(120)){
+    kdL = 30;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    baseRPM = 100;
     flags[0] = true;
-    triggerPointsOfFlags[0] = encoderRCount;
   }
-  if (flags[0] && !flags[1] && (encoderRCount - triggerPointsOfFlags[0]) > distanceToTicks(100) ){
+  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(900)){
+    kdL = 50;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
+    baseRPM = 290;
     flags[1] = true;
   }
 
+  if (flags[1] && !flags[2] && encoderRCount > distanceToTicks(1000) && sumSensors(0, 10)>3 ){
+    stop();
+    delay(300);
+    turn(-140);
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    baseRPM = 100;
+    kdL = 35;
+    weights[0] = -300;
+    weights[1] = -150;
+    weights[8] = 150;
+    weights[9] = 300;
+    flags[2] = true;
+    //triggerPointsOfFlags[0] = encoderRCount;
+  }
+  */
 }
+  
+  
+
