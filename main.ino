@@ -449,7 +449,7 @@ void loop() {
     triggerPointsOfFlags[6] = encoderRCount;
   }
   //
-  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(500) ){
+  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(400) ){
     baseRPM = 100;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
@@ -457,6 +457,20 @@ void loop() {
     kdL = 20;
     flags[7] = true;
     triggerPointsOfFlags[7] = encoderRCount;
+  }
+  //
+  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2300) ){
+    weights[8] = 0;
+    weights[9] = 0;
+    flags[8] = true;
+    triggerPointsOfFlags[8] = encoderRCount;
+  }
+  //
+  if (flags[8] && !flags[9] && encoderRCount - triggerPointsOfFlags[8] > distanceToTicks(3000) ){
+    stop();
+    delay(100000);
+    flags[9] = true;
+    triggerPointsOfFlags[9] = encoderRCount;
   }
 }
   
