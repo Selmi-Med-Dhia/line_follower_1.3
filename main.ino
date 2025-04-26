@@ -9,7 +9,7 @@ int motorLB = 21; // left motor -
 int encoderRA = 4; // right encoder A phase
 int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
-int encoderLB = 18; // left encpder B phase
+int encoderLB = 18; // left encoder B phase
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
 
 volatile long encoderRCount = 0; // tick count of right encoder
@@ -59,9 +59,10 @@ float wheelSpacing = 154;
 bool blackOnWhite = true;
 
 //float weights100[10] = {-100,-60,-30,-25,-10,10,25,30,60,100};
-float weights100[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
+float weights100[10] = {-150,-100,-40,-35,-5,5,35,40,100,150};
 float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
-//float weights250[10] = {-50,-40,-30,-20,-10,10,20,30,40,50};
+float weights70[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
+float weightsOffCenter[10] = {-100,-100,-90,-70,-40,-35,-5,5,35,40};
 
 float weights[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
 
@@ -273,7 +274,7 @@ void stop(){
 void turn(float degree){
   targetR = encoderRCount + ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
   targetL = encoderLCount - ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
-  while(!targetsReached(10)){
+  while(!targetsReached(15)){
     speedRight(getPositionCorrectionR());
     speedLeft(getPositionCorrectionL());
   }
@@ -326,6 +327,15 @@ void loop() {
   
   ////////////////////////////
 
+  //sensor values visualization
+  /*
+  for(int i=0; i<9; i++){
+    Serial.print((getValue(i)?"|":"."));
+    Serial.print(":");
+  }
+  Serial.println(getValue(9)?"|":".");
+  */
+
   //speed control
   
   currentPWMR += getSpeedCorrectionR();
@@ -335,17 +345,7 @@ void loop() {
   speedLeft(currentPWML);
   
 
-  //////////////////////////
-  
-  //sensor values visualization
-  /*
-  for(int i=0; i<9; i++){
-    Serial.print((getValue(i)?"|":"."));
-    Serial.print(":");
-  }
-  Serial.println(getValue(9)?"|":".");
-  */
-  
+  /////////////////////////  
 
   float correction = (float)getLineCorrection();
 
@@ -366,6 +366,7 @@ void loop() {
   previousCorrection = correction;
   
   //flags
+
   // slows down to turn the 0.75*circle
   if (!flags[0] && encoderRCount > distanceToTicks(120)){
     kdL = 30;
@@ -376,7 +377,7 @@ void loop() {
     flags[0] = true;
   }
   // brings the speed back up after the circle
-  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(750)){
+  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(800)){
     kdL = 50;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
@@ -390,23 +391,72 @@ void loop() {
     delay(300);
     turn(-140);
     for(int i=0; i<10;i++){
-      weights[i] = weights100[i];
+      weights[i] = weights70[i];
     }
-    baseRPM = 100;
+    baseRPM = 70;
+    kdL = 25;
     flags[2] = true;
     triggerPointsOfFlags[2] = encoderRCount;
   }
-  // detects the top of the tree and slows down to turn the sharp turn
-  if (flags[2] && !flags[3] && encoderRCount - triggerPointsOfFlags[2] > distanceToTicks(1300) ){
-    baseRPM = 70;
+  // brings the speed back up after the first sharp tun in the tree
+  if (flags[2] && !flags[3] && encoderRCount - triggerPointsOfFlags[2] > distanceToTicks(500) ){
+    baseRPM = 150;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 30;
     flags[3] = true;
     triggerPointsOfFlags[3] = encoderRCount;
   }
-  // nrings the speed back up after the tree's sharp turn
-  if (flags[3] && !flags[4] && encoderRCount - triggerPointsOfFlags[3] > distanceToTicks(300) ){
+  // detects the top of the and turns the sharp turn
+  if (flags[3] && !flags[4] && encoderRCount - triggerPointsOfFlags[3] > distanceToTicks(600) && sumSensors(0,10) > 3){
+    stop();
+    delay(300);
+    turn(60);
     baseRPM = 100;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 20;
     flags[4] = true;
     triggerPointsOfFlags[4] = encoderRCount;
+  }
+  // turns at the end of the tree
+  if (flags[4] && !flags[5] && encoderRCount - triggerPointsOfFlags[4] > distanceToTicks(900) && sumSensors(0,10) > 3){
+    stop();
+    delay(300);
+    targetR = encoderRCount + distanceToTicks(350);
+    targetL = encoderLCount;
+    while(!targetsReached(15)){
+      speedRight(getPositionCorrectionR());
+      speedLeft(getPositionCorrectionL());
+    }
+    stop();
+    weights[0] = 0;
+    weights[1] = 0;
+    weights[2] = 0;
+    flags[5] = true;
+    triggerPointsOfFlags[5] = encoderRCount;
+  }
+  //
+  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(350) ){
+    baseRPM = 290;
+    for(int i=0; i<10;i++){
+      weights[i] = weights200[i];
+    }
+    kdL = 50;
+    flags[6] = true;
+    triggerPointsOfFlags[6] = encoderRCount;
+  }
+  //
+  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(500) ){
+    baseRPM = 100;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 20;
+    flags[7] = true;
+    triggerPointsOfFlags[7] = encoderRCount;
   }
 }
   
