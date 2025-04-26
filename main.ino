@@ -61,14 +61,14 @@ bool blackOnWhite = true;
 //float weights100[10] = {-100,-60,-30,-25,-10,10,25,30,60,100};
 float weights100[10] = {-150,-100,-40,-35,-5,5,35,40,100,150};
 float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
-float weights70[10] = {-150,-70,-40,-35,-5,5,35,40,70,150};
+float weights70[10] = {-150,-100,-40,-35,-5,5,35,40,100,150};
 float weightsOffCenter[10] = {-100,-100,-90,-70,-40,-35,-5,5,35,40};
 
-float weights[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
+float weights[10] ={-170,-100,-40,-25,-10,10,25,40,100,170};
 
 float kpL = 0.5; // proportional weight of line control PID 0.5 for 100
 float kiL = 0.00; // integral weight of line control PID 
-float kdL = 40; // derivative weight of line control PID 20 for 100
+float kdL = 50; // derivative weight of line control PID 40 for 300
 float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
@@ -274,7 +274,7 @@ void stop(){
 void turn(float degree){
   targetR = encoderRCount + ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
   targetL = encoderLCount - ( (wheelSpacing*degree/360.0)/(wheelDiamemter) ) * PPR;
-  while(!targetsReached(15)){
+  while(!targetsReached(20)){
     speedRight(getPositionCorrectionR());
     speedLeft(getPositionCorrectionL());
   }
@@ -369,7 +369,7 @@ void loop() {
 
   // slows down to turn the 0.75*circle
   if (!flags[0] && encoderRCount > distanceToTicks(120)){
-    kdL = 30;
+    kdL = 20;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
@@ -378,7 +378,7 @@ void loop() {
   }
   // brings the speed back up after the circle
   if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(800)){
-    kdL = 50;
+    kdL = 40;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
@@ -394,13 +394,13 @@ void loop() {
       weights[i] = weights70[i];
     }
     baseRPM = 70;
-    kdL = 25;
+    kdL = 20;
     flags[2] = true;
     triggerPointsOfFlags[2] = encoderRCount;
   }
   // brings the speed back up after the first sharp tun in the tree
   if (flags[2] && !flags[3] && encoderRCount - triggerPointsOfFlags[2] > distanceToTicks(500) ){
-    baseRPM = 150;
+    baseRPM = 140;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
@@ -408,7 +408,7 @@ void loop() {
     flags[3] = true;
     triggerPointsOfFlags[3] = encoderRCount;
   }
-  // detects the top of the and turns the sharp turn
+  // detects the top of the tree and turns the sharp turn
   if (flags[3] && !flags[4] && encoderRCount - triggerPointsOfFlags[3] > distanceToTicks(600) && sumSensors(0,10) > 3){
     stop();
     delay(300);
@@ -425,7 +425,7 @@ void loop() {
   if (flags[4] && !flags[5] && encoderRCount - triggerPointsOfFlags[4] > distanceToTicks(900) && sumSensors(0,10) > 3){
     stop();
     delay(300);
-    targetR = encoderRCount + distanceToTicks(350);
+    targetR = encoderRCount + distanceToTicks(270);
     targetL = encoderLCount;
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
@@ -439,7 +439,7 @@ void loop() {
     triggerPointsOfFlags[5] = encoderRCount;
   }
   //
-  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(350) ){
+  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(250) ){
     baseRPM = 290;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
@@ -454,23 +454,84 @@ void loop() {
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
-    kdL = 20;
+    kdL = 10;
     flags[7] = true;
     triggerPointsOfFlags[7] = encoderRCount;
   }
   //
-  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2300) ){
+  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2350) ){
     weights[8] = 0;
     weights[9] = 0;
+    weights[3] = -50;
     flags[8] = true;
     triggerPointsOfFlags[8] = encoderRCount;
   }
   //
-  if (flags[8] && !flags[9] && encoderRCount - triggerPointsOfFlags[8] > distanceToTicks(3000) ){
+  if(flags[9] && !flags[10] && encoderRCount-triggerPointsOfFlags[9]>distanceToTicks(1300) && sumSensors(0, 10) > 3){
     stop();
-    delay(100000);
-    flags[9] = true;
-    triggerPointsOfFlags[9] = encoderRCount;
+    delay(200);
+    targetR = encoderRCount + distanceToTicks(195);
+    targetL = encoderLCount;
+    while(!targetsReached(15)){
+      speedRight(getPositionCorrectionR());
+      speedLeft(getPositionCorrectionL());
+    }
+    stop();
+    for(int i=0 ;i<10;i++){
+      weights[i] = weights100[i];
+    }
+    flags[10] = true;
+    triggerPointsOfFlags[10] = encoderRCount;
+  }
+  if(flags[10] && !flags[11] && encoderRCount - triggerPointsOfFlags[10] > distanceToTicks(200) && sumSensors(0,10)>3 ){ 
+    for(int i=1;i<9;i++){
+      weights[i] = 0 ;
+    }
+    flags[11] = true;
+  }
+  if(flags[11] && !flags[12] && getValue(0) && getValue(9)){
+    stop();
+    delay(200);
+    targetR = encoderRCount;
+    targetL = encoderLCount;
+    while(!targetsReached(10)){
+      speedRight(getPositionCorrectionR());
+      speedLeft(getPositionCorrectionL());
+    }
+    stop();
+    delay(200);
+    targetR = encoderRCount+distanceToTicks(200);
+    targetL = encoderLCount+distanceToTicks(200);;
+    while(!targetsReached(15)){
+      speedRight(getPositionCorrectionR());
+      speedLeft(getPositionCorrectionL());
+    }
+    baseRPM=290;
+    for(int i=0; i<10;i++){
+      weights[i] = weights200[i];
+    }
+    kdL = 50;
+    flags[12]=true;
+    triggerPointsOfFlags[12]=encoderRCount;
+  }
+  if( flags[12] && !flags[13] && encoderRCount -triggerPointsOfFlags[12]> distanceToTicks(1600)){
+    baseRPM=100;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 20;
+    flags[13]=true;
+  }
+  if(flags[13] && !flags[14] && sumSensors(0,10) == 8){
+    targetR = encoderRCount + distanceToTicks(200);
+    targetL = encoderLCount + distanceToTicks(200);
+    while(!targetsReached(15)){
+      speedRight(getPositionCorrectionR());
+      speedLeft(getPositionCorrectionL());
+    }
+    stop();
+    delay(800000);
+    flags[14]=true;
   }
 }
   
