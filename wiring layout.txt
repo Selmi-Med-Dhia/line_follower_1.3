@@ -18,3 +18,5 @@ encoder1A = 33
 encoder1B = 18
 encoder2A = 5
 encoder2B = 4
+
+startButton = 32

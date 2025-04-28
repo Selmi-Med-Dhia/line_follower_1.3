@@ -1,6 +1,7 @@
 #define PI 3.14159265358979323846
 
 //ESP32 pin Layout
+
 int sensors[10] = {2, 34, 35, 27, 26, 25, 14, 13, 12, 15}; // sensor's pins from left to right
 int motorRA = 23; // right motor +
 int motorRB = 22; // right motor -
@@ -10,6 +11,7 @@ int encoderRA = 4; // right encoder A phase
 int encoderRB = 5; // right encoder B phase
 int encoderLA = 33; // left encoder A phase
 int encoderLB = 18; // left encoder B phase
+int startButton = 32;
 float threashold[10] = {0,0,0,0,0,0,0,0,0,0};
 
 volatile long encoderRCount = 0; // tick count of right encoder
@@ -73,6 +75,7 @@ float lineIntegralTerm = 0;
 float previousLineError = 0;
 long previousLineTime = 0;
 float previousCorrection = 0;
+bool lastMoveEnabled = true;
 
 bool flags[15] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
 long triggerPointsOfFlags[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
@@ -211,7 +214,7 @@ double getLineCorrection(){ // returns correction needed to go back on line if o
   for(int i=0;i<10;i++){
     sum += getValue(i);
   }
-  if(sum == 0){
+  if(sum == 0 && lastMoveEnabled){
     error = previousLineError;
   }
 
@@ -291,6 +294,8 @@ int sumSensors(int start, int end){
 void setup() {
   Serial.begin(115200);
 
+  pinMode(startButton,INPUT_PULLUP);
+
   attachInterrupt(digitalPinToInterrupt(encoderRA), encoderRISRA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(encoderLA), encoderLISRA, CHANGE);
   attachInterrupt(digitalPinToInterrupt(encoderRB), encoderRISRB, CHANGE);
@@ -298,7 +303,10 @@ void setup() {
 
   calibrate();
 
-  delay(3000);
+  while(!digitalRead(startButton)){
+    delay(1);
+  }
+  delay(100);
 }
 
 // sensor [4] ynoooo555555 w [5],[7],[8] yno55
@@ -350,8 +358,6 @@ void loop() {
 
   targetSpeedR = baseRPM - correction;
   targetSpeedL = baseRPM + correction;
-
-  //Serial.println(getLineCorrection());
 
   // jumping to speed (approximately)
   if(previousCorrection != correction){
@@ -426,14 +432,14 @@ void loop() {
     stop();
     delay(300);
     targetR = encoderRCount + distanceToTicks(270);
-    targetL = encoderLCount + distanceToTicks(50);
+    targetL = encoderLCount ;
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
       speedLeft(getPositionCorrectionL());
     }
     stop();
 
-    baseRPM = 60;
+    baseRPM = 55;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
@@ -443,14 +449,15 @@ void loop() {
     weights[1] = 0;
     weights[2] = 0;
 
-    weights[8] =150;
-    weights[9] = 200;
+    weights[7] =60;
+    weights[8] =200;
+    weights[9] = 250;
     flags[5] = true;
     triggerPointsOfFlags[5] = encoderRCount;
   }
   // brings the speed back up after exiting the tree
-  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(400) ){
-    baseRPM = 250;
+  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(280) ){
+    baseRPM = 230;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
@@ -459,7 +466,7 @@ void loop() {
     triggerPointsOfFlags[6] = encoderRCount;
   }
   // slows down for the squiguelly line
-  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(150) ){
+  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(270) ){
     baseRPM = 95;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
@@ -477,7 +484,7 @@ void loop() {
     triggerPointsOfFlags[8] = encoderRCount;
   }
   // detects the frogs leaf and turns towards it
-  if(flags[8] && !flags[9] && encoderRCount-triggerPointsOfFlags[8]>distanceToTicks(1450) && sumSensors(0,6)>3 ){
+  if(flags[8] && !flags[9] && encoderRCount-triggerPointsOfFlags[8]>distanceToTicks(1350) && sumSensors(0,6)>3 ){
     stop();
     delay(200);
     targetR = encoderRCount + distanceToTicks(235);
@@ -498,41 +505,66 @@ void loop() {
     for(int i=1;i<9;i++){
       weights[i] = 0 ;
     }
+    weights[0] = -200 ;
+    weights[9] = 200 ;
     flags[10] = true;
+    baseRPM = 70;
   }
   // detects the entrance to the after leaf thingy and sprints forward
   if(flags[10] && !flags[11] && getValue(0) && getValue(9)){
-    stop();
-    delay(200);
     targetR = encoderRCount;
     targetL = encoderLCount;
+    stop();
+    delay(200);
     while(!targetsReached(10)){
       speedRight(getPositionCorrectionR());
       speedLeft(getPositionCorrectionL());
     }
     stop();
     delay(200);
-    targetR = encoderRCount+distanceToTicks(200);
-    targetL = encoderLCount+distanceToTicks(200);;
-    while(!targetsReached(15)){
-      speedRight(getPositionCorrectionR());
-      speedLeft(getPositionCorrectionL());
+    targetR = encoderRCount+distanceToTicks(150);
+    targetL = encoderLCount+distanceToTicks(150);
+    targetSpeedR = 100;
+    targetSpeedL = 98;
+    while(true){
+      tmp = micros();
+      speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
+      previousEncoderRCount = encoderRCount;
+      previousMeasureTimeR = tmp;
+
+      speedL = ( (encoderLCount - previousEncoderLCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeL);
+      previousEncoderLCount = encoderLCount;
+      previousMeasureTimeL = tmp;
+      delay(8);
+
+      currentPWMR += getSpeedCorrectionR();
+      currentPWML += getSpeedCorrectionL();
+
+      speedRight(currentPWMR);
+      speedLeft(currentPWML);
+      if(encoderRCount > targetR - 10 && encoderLCount > targetL - 10){
+        break;
+      }
     }
+    stop();
     baseRPM=250;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
-    kdL = 30;
+    kdL = 50;
+    lastMoveEnabled = false;
+    previousLineError = 0;
     flags[11]=true;
     triggerPointsOfFlags[11]=encoderRCount;
   }
   // slows down for the 90° turn near the base
-  if( flags[11] && !flags[12] && encoderRCount -triggerPointsOfFlags[11]> distanceToTicks(1600)){
-    baseRPM=100;
+  if( flags[11] && !flags[12] && encoderRCount -triggerPointsOfFlags[11]> distanceToTicks(1400)){
+    baseRPM=70;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
     kdL = 20;
+    lastMoveEnabled = true;
     flags[12]=true;
   }
   // stops at the base
@@ -544,6 +576,8 @@ void loop() {
       speedLeft(getPositionCorrectionL());
     }
     stop();
+    delay(5000);
+    turn(150);
     delay(800000);
     flags[13]=true;
   }
