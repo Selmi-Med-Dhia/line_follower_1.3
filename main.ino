@@ -475,19 +475,29 @@ void loop() {
     flags[7] = true;
     triggerPointsOfFlags[7] = encoderRCount;
   }
-  // prefers right for the frogs eyes
-  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2450) ){
-    weights[8] = 0;
-    weights[9] = 0;
-    weights[3] = -50;
+  // reduces the Kd for the second part of the squiguelly line
+  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(500) ){
+    kdL = 5;
+    weights[0] = -120;
+    weights[1] = -80;
+    weights[8] = 80;
+    weights[9] = 120;
     flags[8] = true;
     triggerPointsOfFlags[8] = encoderRCount;
   }
+  // prefers right for the frogs eyes
+  if (flags[8] && !flags[9] && encoderRCount - triggerPointsOfFlags[8] > distanceToTicks(1880) ){
+    weights[8] = 0;
+    weights[9] = 0;
+    weights[3] = -50;
+    flags[9] = true;
+    triggerPointsOfFlags[9] = encoderRCount;
+  }
   // detects the frogs leaf and turns towards it
-  if(flags[8] && !flags[9] && encoderRCount-triggerPointsOfFlags[8]>distanceToTicks(1350) && sumSensors(0,6)>3 ){
+  if(flags[9] && !flags[10] && encoderRCount-triggerPointsOfFlags[9]>distanceToTicks(1400) && sumSensors(0,6)>3 ){
     stop();
     delay(200);
-    targetR = encoderRCount + distanceToTicks(235);
+    targetR = encoderRCount + distanceToTicks(220);
     targetL = encoderLCount;
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
@@ -497,21 +507,21 @@ void loop() {
     for(int i=0 ;i<10;i++){
       weights[i] = weights100[i];
     }
-    flags[9] = true;
-    triggerPointsOfFlags[9] = encoderRCount;
+    flags[10] = true;
+    triggerPointsOfFlags[10] = encoderRCount;
   }
   // zeroes the middle sensors after exiting the leaf
-  if(flags[9] && !flags[10] && encoderRCount - triggerPointsOfFlags[9] > distanceToTicks(200) && sumSensors(0,10)>3 ){ 
+  if(flags[10] && !flags[11] && encoderRCount - triggerPointsOfFlags[10] > distanceToTicks(200) && sumSensors(0,10)>3 ){ 
     for(int i=1;i<9;i++){
       weights[i] = 0 ;
     }
-    weights[0] = -200 ;
-    weights[9] = 200 ;
-    flags[10] = true;
-    baseRPM = 70;
+    weights[0] = -200;
+    weights[9] = 200;
+    baseRPM = 55;
+    flags[11] = true;
   }
   // detects the entrance to the after leaf thingy and sprints forward
-  if(flags[10] && !flags[11] && getValue(0) && getValue(9)){
+  if(flags[11] && !flags[12] && getValue(0) && getValue(9)){
     targetR = encoderRCount;
     targetL = encoderLCount;
     stop();
@@ -522,10 +532,10 @@ void loop() {
     }
     stop();
     delay(200);
-    targetR = encoderRCount+distanceToTicks(150);
-    targetL = encoderLCount+distanceToTicks(150);
+    targetR = encoderRCount+distanceToTicks(100);
+    targetL = encoderLCount+distanceToTicks(95);
     targetSpeedR = 100;
-    targetSpeedL = 98;
+    targetSpeedL = 95;
     while(true){
       tmp = micros();
       speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
@@ -552,23 +562,35 @@ void loop() {
       weights[i] = weights200[i];
     }
     kdL = 50;
+    weights[0] = 0;
+    weights[9] = 0;
     lastMoveEnabled = false;
     previousLineError = 0;
-    flags[11]=true;
-    triggerPointsOfFlags[11]=encoderRCount;
+    flags[12] = true;
+    triggerPointsOfFlags[12] = encoderRCount;
   }
   // slows down for the 90° turn near the base
-  if( flags[11] && !flags[12] && encoderRCount -triggerPointsOfFlags[11]> distanceToTicks(1400)){
+  if( flags[12] && !flags[13] && encoderRCount - triggerPointsOfFlags[12] > distanceToTicks(1400)){
+    /*
     baseRPM=70;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
     kdL = 20;
     lastMoveEnabled = true;
-    flags[12]=true;
+    flags[13]=true;
+    */
+    baseRPM=70;
+    for(int i=0; i<10;i++){
+      weights[i] = -weightsOffCenter[-i];
+    }
+    weights[0] = -400;
+    kdL = 20;
+    lastMoveEnabled = true;
+    flags[13]=true;
   }
   // stops at the base
-  if(flags[12] && !flags[13] && sumSensors(0,10) == 8){
+  if(flags[13] && !flags[14] && sumSensors(0,10) == 8){
     targetR = encoderRCount + distanceToTicks(200);
     targetL = encoderLCount + distanceToTicks(200);
     while(!targetsReached(15)){
@@ -579,7 +601,7 @@ void loop() {
     delay(5000);
     turn(150);
     delay(800000);
-    flags[13]=true;
+    flags[14]=true;
   }
 }
   
