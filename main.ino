@@ -58,7 +58,6 @@ float wheelSpacing = 154;
 
 bool blackOnWhite = true;
 
-//float weights100[10] = {-100,-60,-30,-25,-10,10,25,30,60,100};
 float weights100[10] = {-150,-100,-40,-35,-5,5,35,40,100,150};
 float weights200[10] = {-170,-100,-40,-25,-10,10,25,40,100,170};
 float weights70[10] = {-150,-100,-40,-35,-5,5,35,40,100,150};
@@ -68,7 +67,7 @@ float weights[10] ={-170,-100,-40,-25,-10,10,25,40,100,170};
 
 float kpL = 0.5; // proportional weight of line control PID 0.5 for 100
 float kiL = 0.00; // integral weight of line control PID 
-float kdL = 50; // derivative weight of line control PID 40 for 300
+float kdL = 40; // derivative weight of line control PID 40 for 300
 float ksL = 1;
 float lineIntegralTerm = 0;
 float previousLineError = 0;
@@ -78,7 +77,7 @@ float previousCorrection = 0;
 bool flags[15] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
 long triggerPointsOfFlags[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-float baseRPM = 300;
+float baseRPM = 200;
 
 void IRAM_ATTR encoderRISRA() { // increments or dectrements encoder count based on the state of A and B phases
   if(digitalRead(encoderRB) == digitalRead(encoderRA)){ // plot A and B to further see why it works
@@ -369,7 +368,7 @@ void loop() {
 
   // slows down to turn the 0.75*circle
   if (!flags[0] && encoderRCount > distanceToTicks(120)){
-    kdL = 20;
+    kdL = 25;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
@@ -377,7 +376,7 @@ void loop() {
     flags[0] = true;
   }
   // brings the speed back up after the circle
-  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(800)){
+  if (flags[0] && !flags[1] && encoderRCount > distanceToTicks(950)){
     kdL = 40;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
@@ -386,7 +385,7 @@ void loop() {
     flags[1] = true;
   }
   // detects the base of the tree and turns 90° to face it
-  if (flags[1] && !flags[2] && encoderRCount > distanceToTicks(1000) && sumSensors(0, 10)>3 ){
+  if (flags[1] && !flags[2] && encoderRCount > distanceToTicks(850) && sumSensors(4, 10)>3 ){
     stop();
     delay(300);
     turn(-140);
@@ -394,7 +393,7 @@ void loop() {
       weights[i] = weights70[i];
     }
     baseRPM = 70;
-    kdL = 20;
+    kdL = 30;
     flags[2] = true;
     triggerPointsOfFlags[2] = encoderRCount;
   }
@@ -410,9 +409,10 @@ void loop() {
   }
   // detects the top of the tree and turns the sharp turn
   if (flags[3] && !flags[4] && encoderRCount - triggerPointsOfFlags[3] > distanceToTicks(600) && sumSensors(0,10) > 3){
+    delay(50);
     stop();
     delay(300);
-    turn(60);
+    turn(90);
     baseRPM = 100;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
@@ -426,21 +426,31 @@ void loop() {
     stop();
     delay(300);
     targetR = encoderRCount + distanceToTicks(270);
-    targetL = encoderLCount;
+    targetL = encoderLCount + distanceToTicks(50);
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
       speedLeft(getPositionCorrectionL());
     }
     stop();
+
+    baseRPM = 60;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 30;
+
     weights[0] = 0;
     weights[1] = 0;
     weights[2] = 0;
+
+    weights[8] =150;
+    weights[9] = 200;
     flags[5] = true;
     triggerPointsOfFlags[5] = encoderRCount;
   }
-  //
-  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(250) ){
-    baseRPM = 290;
+  // brings the speed back up after exiting the tree
+  if (flags[5] && !flags[6] && encoderRCount - triggerPointsOfFlags[5] > distanceToTicks(400) ){
+    baseRPM = 250;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
@@ -448,29 +458,29 @@ void loop() {
     flags[6] = true;
     triggerPointsOfFlags[6] = encoderRCount;
   }
-  //
-  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(400) ){
-    baseRPM = 100;
+  // slows down for the squiguelly line
+  if (flags[6] && !flags[7] && encoderRCount - triggerPointsOfFlags[6] > distanceToTicks(150) ){
+    baseRPM = 95;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
-    kdL = 10;
+    kdL = 30;
     flags[7] = true;
     triggerPointsOfFlags[7] = encoderRCount;
   }
-  //
-  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2350) ){
+  // prefers right for the frogs eyes
+  if (flags[7] && !flags[8] && encoderRCount - triggerPointsOfFlags[7] > distanceToTicks(2450) ){
     weights[8] = 0;
     weights[9] = 0;
     weights[3] = -50;
     flags[8] = true;
     triggerPointsOfFlags[8] = encoderRCount;
   }
-  //
-  if(flags[9] && !flags[10] && encoderRCount-triggerPointsOfFlags[9]>distanceToTicks(1300) && sumSensors(0, 10) > 3){
+  // detects the frogs leaf and turns towards it
+  if(flags[8] && !flags[9] && encoderRCount-triggerPointsOfFlags[8]>distanceToTicks(1450) && sumSensors(0,6)>3 ){
     stop();
     delay(200);
-    targetR = encoderRCount + distanceToTicks(195);
+    targetR = encoderRCount + distanceToTicks(235);
     targetL = encoderLCount;
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
@@ -480,16 +490,18 @@ void loop() {
     for(int i=0 ;i<10;i++){
       weights[i] = weights100[i];
     }
-    flags[10] = true;
-    triggerPointsOfFlags[10] = encoderRCount;
+    flags[9] = true;
+    triggerPointsOfFlags[9] = encoderRCount;
   }
-  if(flags[10] && !flags[11] && encoderRCount - triggerPointsOfFlags[10] > distanceToTicks(200) && sumSensors(0,10)>3 ){ 
+  // zeroes the middle sensors after exiting the leaf
+  if(flags[9] && !flags[10] && encoderRCount - triggerPointsOfFlags[9] > distanceToTicks(200) && sumSensors(0,10)>3 ){ 
     for(int i=1;i<9;i++){
       weights[i] = 0 ;
     }
-    flags[11] = true;
+    flags[10] = true;
   }
-  if(flags[11] && !flags[12] && getValue(0) && getValue(9)){
+  // detects the entrance to the after leaf thingy and sprints forward
+  if(flags[10] && !flags[11] && getValue(0) && getValue(9)){
     stop();
     delay(200);
     targetR = encoderRCount;
@@ -506,23 +518,25 @@ void loop() {
       speedRight(getPositionCorrectionR());
       speedLeft(getPositionCorrectionL());
     }
-    baseRPM=290;
+    baseRPM=250;
     for(int i=0; i<10;i++){
       weights[i] = weights200[i];
     }
-    kdL = 50;
-    flags[12]=true;
-    triggerPointsOfFlags[12]=encoderRCount;
+    kdL = 30;
+    flags[11]=true;
+    triggerPointsOfFlags[11]=encoderRCount;
   }
-  if( flags[12] && !flags[13] && encoderRCount -triggerPointsOfFlags[12]> distanceToTicks(1600)){
+  // slows down for the 90° turn near the base
+  if( flags[11] && !flags[12] && encoderRCount -triggerPointsOfFlags[11]> distanceToTicks(1600)){
     baseRPM=100;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
     kdL = 20;
-    flags[13]=true;
+    flags[12]=true;
   }
-  if(flags[13] && !flags[14] && sumSensors(0,10) == 8){
+  // stops at the base
+  if(flags[12] && !flags[13] && sumSensors(0,10) == 8){
     targetR = encoderRCount + distanceToTicks(200);
     targetL = encoderLCount + distanceToTicks(200);
     while(!targetsReached(15)){
@@ -531,7 +545,7 @@ void loop() {
     }
     stop();
     delay(800000);
-    flags[14]=true;
+    flags[13]=true;
   }
 }
   
