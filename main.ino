@@ -77,8 +77,8 @@ long previousLineTime = 0;
 float previousCorrection = 0;
 bool lastMoveEnabled = true;
 
-bool flags[20] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
-long triggerPointsOfFlags[20] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+bool flags[25] = {false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false};
+long triggerPointsOfFlags[25] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 float baseRPM = 95;
 
@@ -682,6 +682,7 @@ void loop() {
     flags[15] = true;
     triggerPointsOfFlags[15] = encoderRCount;
   }
+  // skips the first turn after the base
   if( flags[15] && !flags[16] && encoderRCount - triggerPointsOfFlags[15] > distanceToTicks(80) && sumSensors(0,6) > 3){
     targetR = encoderRCount + distanceToTicks(70);
     targetL = encoderLCount + distanceToTicks(70);
@@ -710,6 +711,7 @@ void loop() {
     flags[16] = true;
     triggerPointsOfFlags[16] = encoderRCount;
   }
+  // goes on the ramp
   if( flags[16] && !flags[17] && encoderRCount - triggerPointsOfFlags[16] > distanceToTicks(120) ){
     targetR = encoderRCount + distanceToTicks(1000);
     targetL = encoderLCount + distanceToTicks(1000);
@@ -736,13 +738,88 @@ void loop() {
       }
     }
     stop();
+    baseRPM=100;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    kdL = 30;
     flags[17] = true;
     triggerPointsOfFlags[17] = encoderRCount;
   }
-  if( flags[17] && !flags[18] && sumSensors(0, 10)>6 && encoderRCount - triggerPointsOfFlags[17] > distanceToTicks(1200)){
+  // detects the entrance to the reversed area
+  if( flags[17] && !flags[18] && sumSensors(0, 10)>3 && encoderRCount - triggerPointsOfFlags[17] > distanceToTicks(1000)){
+    baseRPM=250;
+    for(int i=0; i<10;i++){
+      weights[i] = weights200[i];
+    }
+    weights[8] = 0;
+    weights[9] = 0;
+    kdL = 50;
     blackOnWhite = false;
     flags[18] = true;
     triggerPointsOfFlags[18] = encoderRCount;
   }
+  // brings back the right most sensors after the first turn in the reversed area
+  if( flags[18] && !flags[19] && encoderRCount - triggerPointsOfFlags[18] > distanceToTicks(550)){
+    for(int i=0; i<10;i++){
+      weights[i] = weights200[i];
+    }
+    flags[19] = true;
+    triggerPointsOfFlags[19] = encoderRCount;
+  }
+  // detects the exit of the reversed area
+  if( flags[19] && !flags[20] && sumSensors(0, 10)>6){
+    blackOnWhite = true;
+    for(int i=0; i<10;i++){
+      weights[i] = weights100[i];
+    }
+    baseRPM = 100;
+    kdL = 30;
+    flags[20] = true;
+    triggerPointsOfFlags[20] = encoderRCount;
+  }
+  // zeroes the middle sensors after turning the last 90°
+  if( flags[20] && !flags[21] && encoderRCount - triggerPointsOfFlags[20]>distanceToTicks(600)){
+    for(int i=2;i>8;i++){
+      weights[i]=0;
+    }
+    weights[0] = 0;
+    weights[9] = 0;
+    flags[21] = true;
+    triggerPointsOfFlags[21] = encoderRCount;
+  }
+  // stops at the base
+  if(flags[21] && !flags[22] && getValue(1) && getValue(8)){
+    //stop();
+    //delay(5000);
+    targetR = encoderRCount + distanceToTicks(190);
+    targetL = encoderLCount + distanceToTicks(190);
+    stop();
+    delay(200);
+    targetSpeedR = 100;
+    targetSpeedL = 100;
+    while(true){
+      tmp = micros();
+      speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
+      previousEncoderRCount = encoderRCount;
+      previousMeasureTimeR = tmp;
 
+      speedL = ( (encoderLCount - previousEncoderLCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeL);
+      previousEncoderLCount = encoderLCount;
+      previousMeasureTimeL = tmp;
+      delay(8);
+
+      currentPWMR += getSpeedCorrectionR();
+      currentPWML += getSpeedCorrectionL();
+
+      speedRight(currentPWMR);
+      speedLeft(currentPWML);
+      if(encoderRCount > targetR - 30 && encoderLCount > targetL - 30){
+        break;
+      }
+    }
+    stop();
+    delay(50000);
+    flags[22]=true;
+  }
 }
