@@ -501,7 +501,7 @@ void loop() {
   if(flags[9] && !flags[10] && encoderRCount-triggerPointsOfFlags[9]>distanceToTicks(1400) && sumSensors(0,6)>3 ){
     stop();
     delay(200);
-    targetR = encoderRCount + distanceToTicks(220);
+    targetR = encoderRCount + distanceToTicks(230);
     targetL = encoderLCount;
     while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
@@ -521,7 +521,7 @@ void loop() {
     }
     weights[0] = -200;
     weights[9] = 200;
-    baseRPM = 55;
+    baseRPM = 50;
     flags[11] = true;
   }
   // detects the entrance to the after leaf thingy and sprints forward
@@ -530,7 +530,7 @@ void loop() {
     targetL = encoderLCount;
     stop();
     delay(200);
-    while(!targetsReached(10)){
+    while(!targetsReached(15)){
       speedRight(getPositionCorrectionR());
       speedLeft(getPositionCorrectionL());
     }
@@ -575,18 +575,19 @@ void loop() {
   }
   // slows down for the 90° turn near the base
   if( flags[12] && !flags[13] && encoderRCount - triggerPointsOfFlags[12] > distanceToTicks(1400)){
-    baseRPM=55;
+    baseRPM=120;
     for(int i=0; i<10;i++){
       weights[i] = weights100[i];
     }
-    kdL = 10;
+    kdL = 0;
     lastMoveEnabled = true;
     flags[13]=true;
   }
   // stops at the base
   if(flags[13] && !flags[14] && sumSensors(0,10) == 8){
-    targetR = encoderRCount + distanceToTicks(160);
-    targetL = encoderLCount + distanceToTicks(160);
+    targetR = encoderRCount + distanceToTicks(155);
+    targetL = encoderLCount + distanceToTicks(155);
+    stop();
     targetSpeedR = 100;
     targetSpeedL = 100;
     while(true){
@@ -611,10 +612,10 @@ void loop() {
     }
     stop();
     delay(2000);
-    targetR = encoderRCount + distanceToTicks(40);
-    targetL = encoderLCount + distanceToTicks(40);
+    targetR = encoderRCount + 530;
+    targetL = encoderLCount;
     targetSpeedR = 100;
-    targetSpeedL = 100;
+    targetSpeedL = 0;
     while(true){
       tmp = micros();
       speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
@@ -631,18 +632,25 @@ void loop() {
 
       speedRight(currentPWMR);
       speedLeft(currentPWML);
-      if(encoderRCount > targetR - 10 && encoderLCount > targetL - 10){
+      if(encoderRCount > targetR - 10 && encoderLCount > targetL - 5){
         break;
       }
     }
     stop();
-    turn(160);
+    delay(300);
 
-    targetR = encoderRCount + distanceToTicks(50);
-    targetL = encoderLCount + distanceToTicks(50);
-    targetSpeedR = 100;
-    targetSpeedL = 100;
+    targetR = encoderRCount - distanceToTicks(75);
+    targetL = encoderLCount - distanceToTicks(75);
+    targetSpeedR = -100;
+    targetSpeedL = -100;
+    currentPWMR = 0;
+    currentPWML = 0;
+
     while(true){
+      speedRight(currentPWMR);
+      speedLeft(currentPWML);
+      
+      delay(8);
       tmp = micros();
       speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
       previousEncoderRCount = encoderRCount;
@@ -651,24 +659,32 @@ void loop() {
       speedL = ( (encoderLCount - previousEncoderLCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeL);
       previousEncoderLCount = encoderLCount;
       previousMeasureTimeL = tmp;
-      delay(8);
 
       currentPWMR += getSpeedCorrectionR();
       currentPWML += getSpeedCorrectionL();
 
-      speedRight(currentPWMR);
-      speedLeft(currentPWML);
-      if(encoderRCount > targetR - 10 && encoderLCount > targetL - 10){
+      if(encoderRCount < targetR + 10 && encoderLCount < targetL + 10){
         break;
       }
     }
     stop();
     baseRPM = 0;
+    kdL = 30;
     flags[14]=true;
+    triggerPointsOfFlags[14] = millis();
   }
-  if( flags[14] && !flags[15] && getValue(4) && getValue(5)){
-    targetR = encoderRCount + distanceToTicks(2000);
-    targetL = encoderLCount + distanceToTicks(2000);
+  // centers itself on the line preparing for the ramp
+  if( flags[14] && !flags[15] && millis() - triggerPointsOfFlags[14] > 1500){
+    baseRPM = 100;
+    for(int i=0;i<10;i++){
+      weights[i] = weights100[i];
+    }
+    flags[15] = true;
+    triggerPointsOfFlags[15] = encoderRCount;
+  }
+  if( flags[15] && !flags[16] && encoderRCount - triggerPointsOfFlags[15] > distanceToTicks(80) && sumSensors(0,6) > 3){
+    targetR = encoderRCount + distanceToTicks(70);
+    targetL = encoderLCount + distanceToTicks(70);
     targetSpeedR = 100;
     targetSpeedL = 100;
     while(true){
@@ -691,8 +707,42 @@ void loop() {
         break;
       }
     }
-    stop();
-    delay(1000000);
-    flags[15] = true;
+    flags[16] = true;
+    triggerPointsOfFlags[16] = encoderRCount;
   }
+  if( flags[16] && !flags[17] && encoderRCount - triggerPointsOfFlags[16] > distanceToTicks(120) ){
+    targetR = encoderRCount + distanceToTicks(1000);
+    targetL = encoderLCount + distanceToTicks(1000);
+    targetSpeedR = 300;
+    targetSpeedL = 300;
+    while(true){
+      tmp = micros();
+      speedR = ( (encoderRCount - previousEncoderRCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeR);
+      previousEncoderRCount = encoderRCount;
+      previousMeasureTimeR = tmp;
+
+      speedL = ( (encoderLCount - previousEncoderLCount)*(60000000.0/PPR) ) / (tmp - previousMeasureTimeL);
+      previousEncoderLCount = encoderLCount;
+      previousMeasureTimeL = tmp;
+      delay(8);
+
+      currentPWMR += getSpeedCorrectionR();
+      currentPWML += getSpeedCorrectionL();
+
+      speedRight(currentPWMR);
+      speedLeft(currentPWML);
+      if(encoderRCount > targetR - 10 && encoderLCount > targetL - 10){
+        break;
+      }
+    }
+    stop();
+    flags[17] = true;
+    triggerPointsOfFlags[17] = encoderRCount;
+  }
+  if( flags[17] && !flags[18] && sumSensors(0, 10)>6 && encoderRCount - triggerPointsOfFlags[17] > distanceToTicks(1200)){
+    blackOnWhite = false;
+    flags[18] = true;
+    triggerPointsOfFlags[18] = encoderRCount;
+  }
+
 }
